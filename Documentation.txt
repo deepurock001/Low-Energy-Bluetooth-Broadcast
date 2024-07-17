@@ -1,0 +1,133 @@
+
+                                         Documentation of Low Energy Bluetooth Service Broadcasting
+
+
+1) Libraries: 
+ 
+ Necessary Bluetooth Libraries  
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+
+DHT sensor library
+#include <DHT.h>
+
+2)Define Bluetoth Objects: Define variables for BLE server, service, and characteristics for temperature and humidity.
+
+BLEServer *pServer;
+BLEService *pService;
+BLECharacteristic *pTempCharacteristic;
+BLECharacteristic *pHumidityCharacteristic;
+
+#define DHTPIN 15    // Pin where DHT sensor is connected
+#define DHTTYPE DHT22 // Type of DHT sensor you are using
+
+DHT dht(DHTPIN, DHTTYPE);
+
+3)Setup Bluetooth Service: Initialize Bluetooth and create characteristics for temperature and humidity.
+
+void setupBluetooth() {
+
+  BLEDevice::init("ESP32_BLE");
+
+  pServer = BLEDevice::createServer();
+  pService = pServer->createService(BLEUUID("180D")); // Example service UUID
+
+  pTempCharacteristic = pService->createCharacteristic(
+                          BLEUUID("2A6E"), // Example temperature characteristic UUID
+                          BLECharacteristic::PROPERTY_READ |
+                          BLECharacteristic::PROPERTY_NOTIFY
+                        );
+
+  pHumidityCharacteristic = pService->createCharacteristic(
+                              BLEUUID("2A6F"), // Example humidity characteristic UUID
+                              BLECharacteristic::PROPERTY_READ |
+                              BLECharacteristic::PROPERTY_NOTIFY
+                            );
+  pService->start();
+  BLEAdvertising *pAdvertising = pServer->getAdvertising();
+  pAdvertising->start();
+
+  dht.begin(); // Initialize DHT sensor
+}
+
+4)Update Data and Notify: 
+
+void loop() {
+  delay(2000); // Delay between sensor readings
+
+  float temperature = dht.readTemperature();
+  float humidity = dht.readHumidity();
+
+  if (isnan(temperature) || isnan(humidity)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+
+  // Format temperature and humidity values as strings
+  char tempStr[6];
+  char humStr[6];
+  dtostrf(temperature, 5, 1, tempStr); // Format temperature with 1 decimal place
+  dtostrf(humidity, 5, 1, humStr);     // Format humidity with 1 decimal place
+
+  // Update characteristics with formatted values
+  pTempCharacteristic->setValue(tempStr);
+  pTempCharacteristic->notify();
+  pHumidityCharacteristic->setValue(humStr);
+  pHumidityCharacteristic->notify();
+
+  Serial.print("Temperature: ");
+  Serial.print(temperature);
+  Serial.print(" °C, Humidity: ");
+  Serial.print(humidity);
+  Serial.println(" %");
+}
+
+
+Transferring WiFi Credentials over Bluetooth:
+To transfer WiFi credentials from a smartphone to the ESP32 over Bluetooth, you need to implement a Bluetooth characteristic where the ESP32 listens for incoming data (WiFi credentials in this case). Here’s how you can do it:
+
+i) Add variables for WiFi credentials characteristic:
+
+BLECharacteristic *pWiFiCredentialsCharacteristic;
+
+ii)Define and Implement WiFi Credentials Characteristic:
+
+void setup() {
+
+  pWiFiCredentialsCharacteristic = pService->createCharacteristic(
+                                   BLEUUID("00000002-0000-0000-FDFD-FDFDFDFDFDFD"), // Service UUID
+                                   BLECharacteristic::PROPERTY_WRITE
+                                 );
+}
+
+iii) Implement a callback function to handle incoming WiFi credentials:
+
+class WiFiCredentialsCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    std::string value = pCharacteristic->getValue();
+
+    // Process received WiFi credentials (example implementation)
+    if (value.length() > 0) {
+      Serial.println("Received WiFi credentials:");
+      Serial.println(value.c_str());
+    }
+  }
+};
+
+WiFiCredentialsCallbacks credentialsCallback;
+
+// Add the callback to the characteristic
+pWiFiCredentialsCharacteristic->setCallbacks(&credentialsCallback);
+
+iv)Sending WiFi Credentials from Smartphone
+
+Use a Bluetooth terminal app or a custom smartphone application that can connect to your ESP32 device and write WiFi credentials to the pWiFiCredentialsCharacteristic.
+
+
+
+
+
+
+
+
